@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def register_all_handlers(dp: Dispatcher) -> None:
+    dp.include_routers(admin_router)
     dp.include_routers(user_router)
 
 
