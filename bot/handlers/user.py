@@ -3,6 +3,7 @@ from aiogram import filters
 from aiogram.dispatcher.router import Router
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramMigrateToChat, TelegramBadRequest
+from aiogram.filters import CommandObject
 
 import config
 from bot.db import add_ticket, get_last_user_ticket, get_user, get_ticket_by_id
@@ -17,7 +18,14 @@ user_router = Router()
 user_router.message.filter(~IsInBlacklist(), F.chat.type == "private")
 
 
-async def send_start_message(message: types.Message) -> None:
+async def send_start_message(message: types.Message, command: CommandObject, state: FSMContext) -> None:
+    await message.delete()
+    target = command.args
+    if target:
+        text = texts.targets.get(target, None)
+        if text:
+            await forward_question_to_operator_chat(message, state, target_text=text)
+            return
     await message.answer(texts.start_text, reply_markup=u_keyboard.get_question_keyboard())
 
 
@@ -29,16 +37,25 @@ async def send_operator_start_message(query: types.CallbackQuery, state: FSMCont
 async def send_cancel_message(query: types.CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     await query.message.edit_text(texts.start_text, reply_markup=u_keyboard.get_question_keyboard())
+    
+async def send_cancel_message_com(message: types.Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.delete()
+    await message.answer(texts.start_text, reply_markup=u_keyboard.get_question_keyboard())
 
 
-async def forward_question_to_operator_chat(message: types.Message, state: FSMContext) -> None:
+async def forward_question_to_operator_chat(message: types.Message, state: FSMContext, **kwargs) -> None:
     try:
         await add_ticket(content=message.text, user_id=message.from_user.id)
         ticket = await get_last_user_ticket(message.from_user.id)
         ticket_id = ticket[0]
+        text = message.text
+        target_text = kwargs.get("target_text", None)
+        if target_text:
+            text = target_text
         for admin in config.ADMIN_LIST.split(","):
             await message.bot.send_message(admin,
-                                        message.text + f"\n\nt.me/{message.from_user.username}\nНомер заявки: {ticket_id}",
+                                        text + f"\n\nt.me/{message.from_user.username}\nНомер заявки: {ticket_id}",
                                         reply_markup=a_keyboard.get_ticket_keyboard(ticket_id))
         await message.answer("Оператор скоро с вами свяжется")
         await state.set_state(UserQuestionState.waiting_for_operator)
@@ -83,6 +100,7 @@ user_router.message.register(send_start_message, filters.CommandStart())
 user_router.message.register(forward_question_to_operator_chat, UserQuestionState.start)
 user_router.callback_query.register(send_operator_start_message, F.data == "operator")
 user_router.callback_query.register(send_cancel_message, F.data == "cancel")
+user_router.message.register(send_cancel_message_com, filters.Command("cancel"))
 user_router.message.register(check_for_operator, UserQuestionState.waiting_for_operator)
 user_router.message.register(chat_with_operator, UserQuestionState.in_process)
 user_router.message.register(send_wrong_type_message, ~F.text)
