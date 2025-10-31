@@ -23,29 +23,33 @@ async def deny_ticket(query: types.CallbackQuery, state: FSMContext) -> None:
     ticket_done = ticket[2]
     admin_id = ticket[5]
     user_id = ticket[4]
-    if not ticket_done and not admin_id is None:
-        await query.bot.send_message(user_id, 
-                                    texts.ticket_deny + f"\nНомер заявки: {ticket_id}",
-                                    reply_markup=u_keyboard.get_question_keyboard())
-        user_state = FSMContext(
-            storage=state.storage,
-            key=StorageKey(
-                bot_id=query.bot.id,
-                chat_id=user_id,
-                user_id=user_id
-            )
-        )
-        await user_state.clear()
-        await state.clear()
+    if ticket_done or not admin_id is None:
+        await query.answer(text="Вы пытаетесь отклонить чужой или закрытый тикет", show_alert=True)
         await query.message.delete_reply_markup()
+        return
+    await query.bot.send_message(user_id, 
+                                texts.ticket_deny + f"\nНомер заявки: {ticket_id}",
+                                reply_markup=u_keyboard.get_question_keyboard())
+    user_state = FSMContext(
+        storage=state.storage,
+        key=StorageKey(
+            bot_id=query.bot.id,
+            chat_id=user_id,
+            user_id=user_id
+        )
+    )
+    await user_state.clear()
+    await state.clear()
+    await query.message.delete_reply_markup()
     
 async def take_ticket(query: types.CallbackQuery, state: FSMContext) -> None:
     await state.set_state(TicketStatusState.in_process)
     ticket_id = query.data.split(":")[1]
     ticket = await get_ticket_by_id(ticket_id)
     admin_id = ticket[5]
-    if str(admin_id) != str(query.from_user.id):  
-        await query.answer(text="Вы пытаетесь взять чужой или закрытый тикет")
+    if admin_id and str(admin_id) != str(query.from_user.id):  
+        await query.answer(text="Вы пытаетесь взять чужой или закрытый тикет", show_alert=True)
+        await query.message.delete_reply_markup()
         return
     await state.update_data({'user_id': ticket[4]})
     await update_ticket_admin(ticket_id, query.from_user.id)
