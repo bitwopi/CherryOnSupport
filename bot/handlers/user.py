@@ -2,20 +2,17 @@ from aiogram import types, F
 from aiogram import filters
 from aiogram.dispatcher.router import Router
 from aiogram.fsm.context import FSMContext
-from aiogram.exceptions import TelegramMigrateToChat, TelegramBadRequest
 from aiogram.filters import CommandObject
 
 import config
-from bot.db import add_ticket, get_last_user_ticket, get_user, get_ticket_by_id
-from bot.filters.user import IsRegistered, IsInBlacklist
+from bot.db import add_ticket, get_last_user_ticket
 from bot.keyboards import user as u_keyboard
 from bot.keyboards import admin as a_keyboard
 from bot.states.user import UserQuestionState
-from bot.handlers.admin import admin_router
 from bot.texts import user as texts
 
 user_router = Router()
-user_router.message.filter(~IsInBlacklist(), F.chat.type == "private")
+user_router.message.filter(F.chat.type == "private")
 
 
 async def send_start_message(message: types.Message, command: CommandObject, state: FSMContext) -> None:
