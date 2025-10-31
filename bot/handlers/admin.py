@@ -85,7 +85,14 @@ async def close_ticket(query: types.CallbackQuery, state: FSMContext) -> None:
 async def chat_with_user(message: types.Message, state: FSMContext) -> None:
     data = await state.get_data()
     user_id = data.get('user_id')
-    await message.bot.send_message(user_id, message.text)
+    if message.text:
+        await message.bot.send_message(user_id, message.text)
+    elif message.photo:
+        await message.bot.send_photo(user_id, message.photo[-1].file_id)
+    elif message.video:
+        await message.bot.send_video(user_id, message.video.file_id)
+    elif message.document:
+        await message.bot.send_document(user_id, message.document.file_id)
 
 
 

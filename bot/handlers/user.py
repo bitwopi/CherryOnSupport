@@ -81,8 +81,17 @@ async def chat_with_operator(message: types.Message, state: FSMContext) -> None:
         await message.answer("Ваше обращение закрыто администратором")
         await state.clear()
         return
+    
     data = await state.get_data()
-    await message.bot.send_message(data['admin_id'], text=message.text)
+    admin_id = data['admin_id']
+    if message.text:
+        await message.bot.send_message(admin_id, message.text)
+    elif message.photo:
+        await message.bot.send_photo(admin_id, message.photo[-1].file_id)
+    elif message.video:
+        await message.bot.send_video(admin_id, message.video.file_id)
+    elif message.document:
+        await message.bot.send_document(admin_id, message.document.file_id)
 
 
 async def send_wrong_type_message(message: types.Message) -> None:
