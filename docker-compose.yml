@@ -1,0 +1,32 @@
+services:
+  support_bot:
+    env_file:                # Указываем файл с переменными окружения
+      - .env
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: support_bot
+    volumes:
+      - ./logs:/app/logs
+    depends_on: 
+      redis:
+        condition: service_healthy
+
+  redis:
+    env_file:
+    - .env
+    image: redis:8
+    container_name: redis
+    ports:
+      - "${REDIS_PORT}:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
+
+volumes:
+  redisdata:

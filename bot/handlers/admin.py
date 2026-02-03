@@ -10,6 +10,7 @@ from bot.filters.admin import TicketFilter, TicketDenyFilter
 from bot.filters.user import IsAdmin
 from bot.keyboards import user as u_keyboard
 from bot.keyboards import admin as a_keyboard
+from bot.rdb import RedisDB
 from bot.states.admin import TicketStatusState
 from bot.texts import admin as texts
 
@@ -17,7 +18,7 @@ admin_router = Router(name="admin_router")
 admin_router.callback_query.filter(IsAdmin())
 
 
-async def deny_ticket(query: types.CallbackQuery, state: FSMContext) -> None:
+async def deny_ticket(query: types.CallbackQuery, state: FSMContext, rdb: RedisDB) -> None:
     ticket_id = query.data.split(":")[1]
     ticket = await get_ticket_by_id(ticket_id)
     ticket_done = ticket[2]
@@ -27,6 +28,14 @@ async def deny_ticket(query: types.CallbackQuery, state: FSMContext) -> None:
         await query.answer(text="Вы пытаетесь отклонить чужой или закрытый тикет", show_alert=True)
         await query.message.delete_reply_markup()
         return
+    msgs = rdb.get_ticket_messageids(ticket_id)
+    print(msgs)
+    for msg in msgs:
+        print(msg, type(msg))
+        if msg["message_id"] == query.message.message_id:
+            continue
+        await query.bot.edit_message_reply_markup(chat_id=msg["chat_id"], message_id=msg["message_id"], reply_markup=None)
+        
     await query.bot.send_message(user_id, 
                                 texts.ticket_deny + f"\nНомер заявки: {ticket_id}",
                                 reply_markup=u_keyboard.get_question_keyboard())
@@ -42,7 +51,7 @@ async def deny_ticket(query: types.CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     await query.message.delete_reply_markup()
     
-async def take_ticket(query: types.CallbackQuery, state: FSMContext) -> None:
+async def take_ticket(query: types.CallbackQuery, state: FSMContext, rdb: RedisDB) -> None:
     await state.set_state(TicketStatusState.in_process)
     ticket_id = query.data.split(":")[1]
     ticket = await get_ticket_by_id(ticket_id)
@@ -51,6 +60,13 @@ async def take_ticket(query: types.CallbackQuery, state: FSMContext) -> None:
         await query.answer(text="Вы пытаетесь взять чужой или закрытый тикет", show_alert=True)
         await query.message.delete_reply_markup()
         return
+    
+    msgs = rdb.get_ticket_messageids(ticket_id)
+    for msg in msgs:
+        if msg["message_id"] == query.message.message_id:
+            continue
+        await query.bot.edit_message_reply_markup(chat_id=msg["chat_id"], message_id=msg["message_id"], reply_markup=None)
+        
     await state.update_data({'user_id': ticket[4]})
     await update_ticket_admin(ticket_id, query.from_user.id)
     await query.message.edit_reply_markup(query.inline_message_id, 

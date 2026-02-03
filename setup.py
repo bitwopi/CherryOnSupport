@@ -3,8 +3,10 @@ import logging
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
 
+from bot.middlewares.middlewares import RedisMiddleware
+from bot.rdb import RedisDB
 import config
 from bot.handlers.admin import admin_router
 from bot.handlers.user import user_router
@@ -12,7 +14,9 @@ from bot.handlers.user import user_router
 logger = logging.getLogger(__name__)
 
 
-def register_all_handlers(dp: Dispatcher) -> None:
+def register_all_handlers(dp: Dispatcher, rdb: RedisDB) -> None:
+    dp.message.outer_middleware(middleware=RedisMiddleware(rdb))
+    dp.callback_query.outer_middleware(middleware=RedisMiddleware(rdb))
     dp.include_routers(admin_router)
     dp.include_routers(user_router)
 
@@ -24,11 +28,13 @@ async def main() -> None:
     )
     logger.info("Starting bot")
 
-    storage = MemoryStorage()
+    storage = RedisStorage.from_url(f"redis://{config.REDIS_HOST}:{config.REDIS_PORT}/1")
     bot = Bot(token=config.BOT_TOKEN, default=DefaultBotProperties(parse_mode='HTML'))
     dp = Dispatcher(storage=storage)
 
-    register_all_handlers(dp)
+    rdb = RedisDB(config.REDIS_HOST, config.REDIS_PORT)
+
+    register_all_handlers(dp, rdb)
 
     # start
     try:

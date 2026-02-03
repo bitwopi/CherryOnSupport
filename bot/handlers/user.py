@@ -4,6 +4,7 @@ from aiogram.dispatcher.router import Router
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import CommandObject
 
+from bot.rdb import RedisDB
 import config
 from bot.db import add_ticket, get_last_user_ticket
 from bot.keyboards import user as u_keyboard
@@ -41,7 +42,7 @@ async def send_cancel_message_com(message: types.Message, state: FSMContext) -> 
     await message.answer(texts.start_text, reply_markup=u_keyboard.get_question_keyboard())
 
 
-async def forward_question_to_operator_chat(message: types.Message, state: FSMContext, **kwargs) -> None:
+async def forward_question_to_operator_chat(message: types.Message, state: FSMContext, rdb: RedisDB, **kwargs) -> None:
     try:
         await add_ticket(content=message.text, user_id=message.from_user.id)
         ticket = await get_last_user_ticket(message.from_user.id)
@@ -51,9 +52,10 @@ async def forward_question_to_operator_chat(message: types.Message, state: FSMCo
         if target_text:
             text = target_text
         for admin in config.ADMIN_LIST.split(","):
-            await message.bot.send_message(admin,
+            adm_msg = await message.bot.send_message(admin,
                                         text + f"\n\nt.me/{message.from_user.username}\nНомер заявки: {ticket_id}",
                                         reply_markup=a_keyboard.get_ticket_keyboard(ticket_id))
+            rdb.add_ticket_messageid(ticket_id, admin, adm_msg.message_id)
         await message.answer("Оператор скоро с вами свяжется")
         await state.set_state(UserQuestionState.waiting_for_operator)
     except Exception as e:
