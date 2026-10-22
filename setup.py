@@ -38,7 +38,7 @@ async def main() -> None:
 
     # start
     try:
-        await bot.delete_webhook()
+        await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)
     finally:
         await dp.storage.close()
